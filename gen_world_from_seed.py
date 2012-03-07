@@ -1,6 +1,10 @@
+#!/usr/bin/python2
+
 import sys
 import os
 import json
+import tempfile
+import subprocess
 
 try:
     import boto
@@ -10,8 +14,13 @@ except ImportError:
 
 from boto.sqs.connection import SQSConnection 
 from boto.sdb.connection import SDBConnection 
+from boto.s3.connection import S3Connection
 from boto.sqs.message import Message
+from boto.s3.key import Key
 
+# provide your own config.py that holds useful
+# configuration settings
+import config
 
 import uuid
 
@@ -89,11 +98,72 @@ def generate():
         queue.delete_message(message)
         return 
 
-    # TODO
-    # Generate this map using a minecraft server
-    # tar up the result
-    # upload to S3
-    print "TODO: generate map with seed %r" % data['seed']
+
+    # check config options
+    if not os.path.isfile(config.minecraft_server):
+        raise Exception("minecraft_server isn't configured")
+
+    tmpdir = tempfile.mkdtemp(prefix="mc_gen")
+
+    # create a settings.properties file with our seed
+    with open(os.path.join(tmpdir, "server.properties"), "w") as f:
+        f.write("level-seed=%s" % data['seed'])
+
+    p = subprocess.Popen(["java", "-jar",
+        config.minecraft_server, "-noGUI"],
+        shell=False,
+        stdin=subprocess.PIPE,
+        cwd=tmpdir)
+
+    p.stdin.write("stop\n")
+    p.stdin.close()
+    p.wait()
+    print ""
+    print "Minecraft server exited with %r" % p.returncode
+    print "World resided in %r" % tmpdir
+
+    print "Making tarball..."
+    p = subprocess.Popen(["tar", "-cf", "world.tar", "world/"],
+        cwd=tmpdir)
+    p.wait()
+    if p.returncode != 0:
+        print "***Error: tar failed"
+        return
+    print "OK."
+    print "Compressing..."
+    p = subprocess.Popen(["bzip2", "world.tar"],
+            shell=False,
+            cwd=tmpdir)
+    p.wait()
+    if p.returncode != 0:
+        print "***Error: compress failed"
+        return
+    print "OK."
+
+    s3 = S3Connection()
+    bucket = s3.get_bucket("overviewer-worlds")
+    k = Key(bucket)
+    k.key = "%s.tar.bz2" % uid
+    print "Uploading to S3..."
+    k.set_contents_from_filename(os.path.join(tmpdir, "world.tar.bz2"), reduced_redundancy=True)
+    print "OK."
+    k.make_public()
+
+    urlbase = "https://s3.amazonaws.com/overviewer-worlds/"
+    url = urlbase + k.key
+    print "World is now available at:", url
+
+    data['generated'] = True
+    data['world_url'] = url
+    data.save()
+    print "Database updated."
+
+    queue.delete_message(message)
+
+    print "All done!"
+
+
+
 
 if __name__ == "__main__":
     if "-seed" in sys.argv:
