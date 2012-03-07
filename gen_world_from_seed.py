@@ -103,6 +103,9 @@ def generate():
     if not os.path.isfile(config.minecraft_server):
         raise Exception("minecraft_server isn't configured")
 
+    # with a generous amount of rounding up, assume it'll take 5 minutes to generate the map
+    message.change_visibility(5*60)
+
     tmpdir = tempfile.mkdtemp(prefix="mc_gen")
 
     # create a settings.properties file with our seed
@@ -122,6 +125,7 @@ def generate():
     print "Minecraft server exited with %r" % p.returncode
     print "World resided in %r" % tmpdir
 
+    message.change_visibility(5*60)
     print "Making tarball..."
     p = subprocess.Popen(["tar", "-cf", "world.tar", "world/"],
         cwd=tmpdir)
