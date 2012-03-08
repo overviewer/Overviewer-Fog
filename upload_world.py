@@ -110,6 +110,40 @@ def add_from_path():
             print "***Error: Failed to update the db"
             return 1
         print "Ok. DB updated"
+    elif os.path.isfile(path):
+        print "You've specified a file. I'll upload it without modification"
+        print "OK? [y/N] ", 
+        if raw_input().lower() != 'y':
+            print "Ok, nevermind."
+            return
+        
+        uid = uuid.uuid4()
+        print uid
+        s3 = S3Connection()
+        bucket = s3.get_bucket("overviewer-worlds")
+        k = Key(bucket)
+        k.key = "%s.tar.bz2" % uid
+        print "Uploading to S3..."
+        k.set_contents_from_filename(path, reduced_redundancy=True)
+        print "OK."
+        k.make_public()
+
+        urlbase = "https://s3.amazonaws.com/overviewer-worlds/"
+        url = urlbase + k.key
+        print "World is now available at:", url
+   
+        data = dict()
+        data['uuid'] = uid
+        data['world_url'] = url
+        sdb = SDBConnection()
+        db = sdb.get_domain("overviewerdb")
+        if not db.put_attributes(uid, data):
+            print "***Error: Failed to update the db"
+            return 1
+        print "Ok. DB updated"
+    else:
+        print "Sorry, I can't find that."
+        return 1
 
 if __name__ == "__main__":
     if "-url" in sys.argv:
