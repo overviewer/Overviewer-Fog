@@ -5,6 +5,13 @@ import os
 import json
 import tempfile
 import subprocess
+import shutil
+
+try:
+    import redstone # <3 libredstone
+except ImportError:
+    sys.path.append(os.path.expanduser("~/devel/libredstone/bindings"))
+    import redstone
 
 try:
     import boto
@@ -32,11 +39,19 @@ if "AWS_SECRET_ACCESS_KEY" not in os.environ:
 def submit():
     if len(sys.argv) < 3:
         print "Usage:"
-        print "  %s -seed <seed>" % sys.argv[0]
+        print "  %s -seed <seed> [<spawn coords>]" % sys.argv[0]
         return
 
+    # TODO use less crappy command line parsing
     seed = sys.argv[2]
-    print "Generate world with this seed (\"%s\") seed [y/N]?" % seed
+
+    if len(sys.argv) == 4:
+        spawn = [int(x) for x in sys.argv[3].split(",")]
+        assert(len(spawn) == 3)
+        print "Generate world with this seed (\"%s\") with spawn %r [y/N]?" % (seed, spawn)
+    else:
+        spawn = None
+        print "Generate world with this seed (\"%s\") [y/N]?" % seed
     if raw_input().lower() == 'y':
         uid = uuid.uuid4()
 
@@ -52,6 +67,8 @@ def submit():
         data['uuid'] = str(uid)
         data['seed'] = seed
         data['generated'] = False
+        if spawn:
+            data['target_spawn'] = spawn
         if not db.put_attributes(uid, data):
             print "***Error: Failed to update the db"
             return 1
@@ -87,7 +104,10 @@ def generate():
     print "Got a job for %r" % uid
     data = db.get_item(uid)
 
+    if 'target_spawn' in data:
+        data['target_spawn'] = map(int, data['target_spawn'])
     print data
+
     # this script generate maps from seeds
     # if this map is already generated, then upate the db
     if data['generated'] == 'True':
@@ -124,6 +144,29 @@ def generate():
     print ""
     print "Minecraft server exited with %r" % p.returncode
     print "World resided in %r" % tmpdir
+
+    # if we want a specific spawn, we need to rewrite the level.dat file,
+    # remove the old region files, and restart the server
+    if 'target_spawn' in data:
+        s = data['target_spawn']
+        leveldat = redstone.NBT.parse_from_file(os.path.join(tmpdir, "world", "level.dat"))
+        root = leveldat.root
+        root['Data']['SpawnX'].set_integer(int(s[0]))
+        root['Data']['SpawnY'].set_integer(int(s[1]))
+        root['Data']['SpawnZ'].set_integer(int(s[2]))
+        leveldat.write_to_file(os.path.join(tmpdir, "world", "level.dat"))
+
+        shutil.rmtree(os.path.join(tmpdir,"world","region"))
+        p = subprocess.Popen(["java", "-jar",
+            config.minecraft_server, "-noGUI"],
+            shell=False,
+            stdin=subprocess.PIPE,
+            cwd=tmpdir)
+
+        p.stdin.write("stop\n")
+        p.stdin.close()
+        p.wait()
+        print "Minecraft server exited with %r" % p.returncode
 
     message.change_visibility(5*60)
     print "Making tarball..."
@@ -176,6 +219,6 @@ if __name__ == "__main__":
         generate()
     else:
         print "Usage:"
-        print "  %s -seed <seed>" % sys.argv[0]
+        print "  %s -seed <seed> [<spawn coords>]" % sys.argv[0]
         print "  %s -generate" % sys.argv[0]
 
