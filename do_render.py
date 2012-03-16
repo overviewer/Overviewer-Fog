@@ -83,6 +83,12 @@ def submit():
 
 def render():
     
+    # check config options
+    if not os.path.isdir(config.overviewer_root):
+        raise Exception("overviewer_root isn't configured")
+    if not os.path.isfile(config.upload_ssh_key):
+        raise Exception("upload_ssh_key isn't configured")
+
     sqs = SQSConnection()
     queue = sqs.get_queue("overviewer-render")
     sdb = SDBConnection()
@@ -94,21 +100,31 @@ def render():
         return 0
 
     render_uuid = message.get_body()
-    print "World uuid:", render_uuid
+    print "render uuid:", render_uuid
     
     render_item = db.get_item(str(render_uuid))
     if not render_item:
         print "***Error can't find a world with that UUID"
         return 1
+    if render_item.get("rendered") != "False":
+        print "***Error: this render has already been started"
+        print "          state", render_item.get("rendered")
+        return 1
+
 
     world_uuid = render_item.get("world_uuid")
     world_item = db.get_item(str(world_uuid))
+    print "world uuid:", world_uuid
 
 
     url = world_item.get("world_url", None)
     if not url:
         print "***Error: can't find worldurl"
         return 1
+
+    message.change_visibility(3*60)
+    render_item['rendered'] = "inprogress"
+    render_item.save()
 
     print "Getting map..." 
     map_url = urllib2.urlopen(url)
@@ -120,6 +136,72 @@ def render():
     shutil.copyfileobj(map_url, fobj)
     fobj.close()
     print "OK."
+
+    print "Uncompressing..."
+    p = subprocess.Popen(["tar", "-jxf" "world.tar.bz2"],
+            cwd=tmpdir)
+    p.wait()
+    if p.returncode != 0:
+        print "***Error: decompressing"
+        return 1
+
+    message.change_visibility(10*60)
+    p = subprocess.Popen(["python2", 
+        os.path.join(config.overviewer_root, "overviewer.py"),
+        os.path.join(tmpdir, "world"),
+        os.path.join(tmpdir, "output_dir"),
+        "--rendermode=smooth-lighting"])
+    p.wait()
+    if p.returncode != 0:
+        print "***Error: rendering"
+        return 1
+
+    print "Making tarball..."
+    p = subprocess.Popen(["tar", "-cf", 
+        os.path.join(tmpdir, "render.tar"),
+        "."],
+        cwd=os.path.join(tmpdir, "output_dir"))
+
+    p.wait()
+    if p.returncode != 0:
+        print "***Error: tar failed"
+        return
+    print "OK."
+    print "Compressing..."
+    p = subprocess.Popen(["bzip2", "render.tar"],
+            shell=False,
+            cwd=tmpdir)
+    p.wait()
+    if p.returncode != 0:
+        print "***Error: compress failed"
+        return
+    print "OK."
+
+
+    message.change_visibility(5*60)
+    print "Uploading to overviewer.org..."
+    p = subprocess.Popen(["ssh",
+        "-l", "upload",
+        "-i", config.upload_ssh_key,
+        "new.overviewer.org",
+        render_uuid],
+        stdin=subprocess.PIPE)
+    fobj = open(os.path.join(tmpdir, "render.tar.bz2"))
+    shutil.copyfileobj(fobj, p.stdin)
+    p.stdin.close()
+    p.wait()
+    if p.returncode != 0:
+        print "***Error: uploading"
+        return 1
+    print "OK"
+
+    render_item['rendered'] = "True"
+    render_item.save()
+    print "Database updated"
+    queue.delete_message(message)
+
+
+        
 
 
 
