@@ -138,17 +138,28 @@ def render():
     print "OK."
 
     print "Uncompressing..."
-    p = subprocess.Popen(["tar", "-jxf" "world.tar.bz2"],
-            cwd=tmpdir)
+    os.mkdir(os.path.join(tmpdir, "world"))
+    p = subprocess.Popen(["tar", "-jxf", os.path.join(tmpdir,"world.tar.bz2")],
+            cwd=os.path.join(tmpdir,"world"))
     p.wait()
     if p.returncode != 0:
         print "***Error: decompressing"
         return 1
 
-    message.change_visibility(10*60)
+    # find the exact directory containing level.dat
+    def findLevel(start):
+        for root, dirs, files in os.walk(start):
+            if "level.dat" in files: return root
+            for d in dirs:
+                findLevel(os.path.join(root, d))
+        raise Exception("Failed to find level.dat")
+
+    real_world_dir = findLevel(os.path.join(tmpdir, "world"))
+
+    # TODO message.change_visibility(10*60)
     p = subprocess.Popen(["python2", 
         os.path.join(config.overviewer_root, "overviewer.py"),
-        os.path.join(tmpdir, "world"),
+        real_world_dir,
         os.path.join(tmpdir, "output_dir"),
         "--rendermode=smooth-lighting"])
     p.wait()
