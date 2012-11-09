@@ -117,12 +117,25 @@ class Job(object):
         return self.data
 
     @classmethod
+    def setup(cls):
+        queue_name = cls.job_type_prefix + cls.job_type
+        queue = boto.connect_sqs().create_queue(queue_name)
+        domain = boto.connect_sdb().create_domain(queue_name)
+        if not queue:
+            raise RuntimeError("could not create SQS queue '{0}'".format(queue_name))
+        if not domain:
+            raise RuntimeError("could not create SDB domain '{0}'".format(queue_name))
+
+    @classmethod
     def _open_queues(cls):
         if cls.job_queue is None:
             queue_name = cls.job_type_prefix + cls.job_type
-            cls.job_queue = boto.connect_sqs().create_queue(queue_name)
-            cls.job_database = boto.connect_sdb().create_domain(queue_name)
-            assert cls.job_queue and cls.job_database
+            cls.job_queue = boto.connect_sqs().get_queue(queue_name)
+            cls.job_database = boto.connect_sdb().get_domain(queue_name)
+            if not cls.job_queue:
+                raise RuntimeError("could not open SQS queue '{0}'".format(queue_name))
+            if not cls.job_database:
+                raise RuntimeError("could not open SDB domain '{0}'".format(queue_name))
 
     @classmethod
     def fetch_next(cls, timeout=None):
@@ -185,6 +198,8 @@ class TestJob(Job):
 
 import sys
 if __name__ == "__main__":
+    if '-setup' in sys.argv:
+        TestJob.setup()
     if '-client' in sys.argv:
         while 1:
             j = TestJob.fetch_next(timeout=20)
