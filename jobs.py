@@ -21,9 +21,13 @@ def job_field(name, default=None, convert=None):
 
 
 class Job(object):
-    job_type_prefix = "fog-"
+    # configurable in subclasses
     job_type = "job"
-    job_fields = [
+    job_fields = []
+
+    # probably shouldn't be configured in subclasses
+    job_type_prefix = "fog-"
+    job_fields_internal = [
         job_field('submitted', lambda: time.time(), float),
         job_field('completed', 0, float),
         job_field('status', SUBMITTED, str),
@@ -92,7 +96,7 @@ class Job(object):
 
     def set_data(self, data):
         self.data = {}
-        for key in self.job_fields:
+        for key in self.job_fields + self.job_fields_internal:
             try:
                 key, get_default, convert = key
             except ValueError:
@@ -194,7 +198,7 @@ class Job(object):
 
 class TestJob(Job):
     job_type = "test"
-    job_fields = Job.job_fields + ["test", job_field("testdefault", 42, int)]
+    job_fields = ["test", job_field("testdefault", 42, int)]
 
 import sys
 if __name__ == "__main__":
