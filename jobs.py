@@ -4,7 +4,7 @@ import boto
 from uuid import uuid4 as gen_uuid
 import time
 
-__all__ = ["job_field", "Job"]
+__all__ = ["job_field", "Job", "SUBMITTED", "INPROGRESS", "COMPLETE", "ERROR"]
 
 # various status codes, found at job.status
 SUBMITTED = "submitted"
@@ -267,6 +267,7 @@ class Job(object):
 
     @classmethod
     def _open_queues(cls):
+        """Used internally to open backend connections."""
         if cls.job_queue is None:
             queue_name = cls.job_type_prefix + cls.job_type
             cls.job_queue = boto.connect_sqs().get_queue(queue_name)
