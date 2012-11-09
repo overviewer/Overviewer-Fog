@@ -6,7 +6,7 @@ import time
 
 __all__ = ["job_field", "Job"]
 
-# various status codes
+# various status codes, found at job.status
 SUBMITTED = "submitted"
 INPROGRESS = "inprogress"
 COMPLETE = "complete"
@@ -14,6 +14,16 @@ ERROR = "error"
 
 
 def job_field(name, default=None, convert=None):
+    """Create a job field description. These are used inside the
+    `job_fields` list in each Job subclass. Each field has a name, and
+    possibly a default and converter function. The default value is
+    used for the field whenever a value isn't provided; if the default
+    value is callable, it is called with no agruments to get the true
+    default. A default of None represents a required field. A
+    converter function is used to make sure that values loaded out of
+    the backend have the type expected; usually it's something simple,
+    like `int` or `float`.
+    """
     if default is not None and not callable(default):
         get_default = lambda: default
     else:
@@ -22,6 +32,36 @@ def job_field(name, default=None, convert=None):
 
 
 class Job(object):
+    """This Job class can be subclassed to represent a certain type of
+    distributed job. Subclasses should set the class variables
+    `job_type` and `job_fields`, and may also add helper
+    methods. `job_type` should be set to a string unique to the job
+    type; it is used to name backend databases and such. `job_fields`
+    should be a list of strings or tuples returned by `job_field`, and
+    each one represents a piece of data associated with each job. In
+    instances of these jobs, the data can be accessed at
+    `job.field_name`.
+
+    The base Job class includes some default fields that are
+    automatically managed by Job; these are `submitted`, `completed`,
+    `status`, and `errmsg`. `submitted` is automatically set to the
+    unix time when the job is created, and `completed` is set to the
+    unix time when `finish()` or `error(...)` are called. `status` is
+    set to one of SUBMITTED, INPROGRESS, COMPLETE, or ERROR by the job
+    automatically based on its status, and `errmsg` is set to a
+    helpful message by `error(...)` at the same time it sets `status`
+    to ERROR.
+
+    The following example is one of the simplest Job subclasses possible:
+
+        class ExampleJob(Job):
+            job_type = "example"
+            job_fields = [
+                "required_field",
+                job_field("optional_field", 42, int),
+            ]
+
+    """
     # configurable in subclasses
     job_type = "job"
     job_fields = []
@@ -40,6 +80,10 @@ class Job(object):
     job_database = None
 
     def __init__(self, uuid, message, data):
+        """Create a job object. This is probably not what you're
+        looking for; look at `sumbit(...)` and the `fetch_*` family of
+        functions.
+        """
         self.uuid = uuid
         self.message = message
         self.data = {}
@@ -61,9 +105,12 @@ class Job(object):
         self.set_data(data)
 
     def __repr__(self):
+        # a nice representation for debugging
         return "<{0} {1}>".format(self.__class__.__name__, repr(self.data))
 
     def __getattr__(self, name):
+        # handle getting our job fields
+
         # shim for before data is set
         if name == 'data':
             return {}
@@ -74,12 +121,19 @@ class Job(object):
             raise AttributeError(name)
 
     def __setattr__(self, name, value):
+        # handle setting our job fields
         if not name in self.data:
             super(Job, self).__setattr__(name, value)
         else:
             self.data[name] = value
 
     def update(self, visibility_timeout=60):
+        """Update the job in the backend. You should call this after
+        changing the values of any of the job fields, so that these
+        changes will show up on other machines. If you got this job
+        from `fetch_next()`, this also prevents other machines from
+        seeing this job for `visibility_timeout` seconds.
+        """
         if self.message:
             self.message.change_visibility(visibility_timeout=visibility_timeout)
         self._open_queues()
@@ -88,6 +142,12 @@ class Job(object):
             raise RuntimeError("could not put key '{0}' in SDB domain '{1}'".format(self.uuid, self.job_database.name))
 
     def finish(self):
+        """Mark the job as finished. Sets `status` to COMPLETE and
+        sets the time in `completed` to the current time. This also
+        implicitly calls `update()`.
+
+        You cannot `finish()` a job unless you got it from `fetch_next()`.
+        """
         if not self.message:
             raise RuntimeError("you cannot finish() a job unless you get it from fetch_next()")
         success = self.message.delete()
@@ -100,6 +160,14 @@ class Job(object):
         self.update()
 
     def error(self, message):
+        """Mark a job as finished, with an error message. Sets
+        `status` to ERROR, sets the time in `completed` to the current
+        time, and sets `errstr` to the given message. This also
+        implicitly calls `update()`.
+
+        You cannot `error(...)' a job unless you got it from
+        `fetch_next()`.
+        """
         if not self.message:
             raise RuntimeError("you cannot error() a job unless you get it from fetch_next()")
         success = self.message.delete()
@@ -113,6 +181,13 @@ class Job(object):
         self.update()
 
     def delete(self):
+        """Delete a job. This prevents the job from showing up
+        anywhere, including `fetch_all()` and
+        `fetch_all_completed()`. Note that currently, you cannot
+        delete a job unless `status` is COMPLETE or ERROR.
+        """
+        if self.status not in [COMPLETE, ERROR]:
+            raise RuntimeError("you cannot delete job '{0}' because it is still pending".format(self.uuid))
         if self.message:
             success = self.message.delete()
             if not success:
@@ -124,6 +199,12 @@ class Job(object):
             raise RuntimeError("could not delete key '{0}' from SDB domain '{1}'".format(self.uuid, self.job_database.name))
 
     def set_data(self, data):
+        """Sets the fields according to a dictionary in `data`, that
+        was created by `get_data`, possibly on another machine. If you
+        want to change the internal representation used by your job
+        class, you should override this method and its twin
+        `get_data`.
+        """
         self.data = {}
         for key in self.job_fields + self.job_fields_internal:
             try:
@@ -155,10 +236,20 @@ class Job(object):
             raise ValueError("passed data has unrecognized key '{0}'".format(data.keys()[0]))
 
     def get_data(self):
+        """Returns a dictionary containing all the data needed to
+        reconstruct this job on another machine, to be read in by
+        `set_data`. If you want to change the internal representation
+        used by your job, you should override this method and its twin
+        `set_data`.
+        """
         return self.data
 
     @classmethod
     def setup(cls):
+        """This method should be called once, ever, for each Job type
+        you will end up using. It creates storage on the backend. If
+        you want to undo this, for whatever reason, use `teardown()`.
+        """
         queue_name = cls.job_type_prefix + cls.job_type
         queue = boto.connect_sqs().create_queue(queue_name)
         domain = boto.connect_sdb().create_domain(queue_name)
@@ -169,6 +260,7 @@ class Job(object):
 
     @classmethod
     def teardown(cls):
+        """This method undoes what `setup()` does."""
         cls._open_queues()
         cls.job_queue.delete()
         cls.job_database.delete()
@@ -186,6 +278,14 @@ class Job(object):
 
     @classmethod
     def fetch_next(cls, timeout=None):
+        """This class method will return the next pending job of this
+        type. Jobs returned this way can be `finish()`d and
+        `error(...)`d. This is how workers get jobs to work on.
+
+        Jobs returned this way will be hidden from other workers for a
+        short amount of time. If you need more time before the job is
+        done, use `update()`.
+        """
         cls._open_queues()
         message = cls.job_queue.read(wait_time_seconds=timeout)
         if message is None:
@@ -210,6 +310,9 @@ class Job(object):
 
     @classmethod
     def fetch_all(cls):
+        """This method returns an iterator over *all* jobs of this
+        type, including completed jobs.
+        """
         cls._open_queues()
         rs = cls.job_database.select("select * from `{0}`".format(cls.job_database.name))
         for j in rs:
@@ -217,6 +320,9 @@ class Job(object):
 
     @classmethod
     def fetch_all_pending(cls):
+        """This method returns an iterator over all jobs that have not
+        yet completed or error'd.
+        """
         cls._open_queues()
         rs = cls.job_database.select("select * from `{0}` where status=\"{1}\" or status=\"{2}\"".format(cls.job_database.name, SUBMITTED, INPROGRESS))
         for j in rs:
@@ -224,6 +330,9 @@ class Job(object):
 
     @classmethod
     def fetch_all_completed(cls):
+        """This method returns an iterator over all jobs that have
+        been completed or error'd.
+        """
         cls._open_queues()
         rs = cls.job_database.select("select * from `{0}` where status=\"{1}\" or status=\"{2}\"".format(cls.job_database.name, COMPLETE, ERROR))
         for j in rs:
@@ -231,6 +340,9 @@ class Job(object):
 
     @classmethod
     def submit(cls, **data):
+        """This method submits a new job, and returns it. It accepts
+        keyword arguments corresponding to job field names.
+        """
         cls._open_queues()
         job = cls(gen_uuid().hex, None, data)
         message = cls.job_queue.new_message(body=job.uuid)
