@@ -92,7 +92,7 @@ def generate():
         f.write("level-seed=%s" % seed)
 
     p = subprocess.Popen(["java", "-jar",
-                         config.minecraft_server, "-noGUI"],
+                         config.minecraft_server, "nogui"],
                          shell=False,
                          stdin=subprocess.PIPE,
                          cwd=tmpdir)
