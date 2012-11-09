@@ -4,6 +4,7 @@ import boto
 from uuid import uuid4 as gen_uuid
 import time
 
+__all__ = ["job_field", "Job"]
 
 # various status codes
 SUBMITTED = "submitted"
