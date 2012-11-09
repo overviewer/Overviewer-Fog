@@ -82,11 +82,16 @@ class Job(object):
         if self.message:
             self.message.change_visibility(visibility_timeout=visibility_timeout)
         self._open_queues()
-        self.job_database.put_attributes(self.uuid, self.get_data())
+        success = self.job_database.put_attributes(self.uuid, self.get_data())
+        if not success:
+            raise RuntimeError("could not put key '{0}' in SDB domain '{1}'".format(self.uuid, self.job_database.name))
 
     def finish(self):
-        assert self.message
-        self.message.delete()
+        if not self.message:
+            raise RuntimeError("you cannot finish() a job unless you get it from fetch_next()")
+        success = self.message.delete()
+        if not success:
+            raise RuntimeError("could not delete message '{0}' from SQS queue '{1}'".format(self.uuid, self.job_queue.name))
         self.message = None
 
         self.status = COMPLETE
@@ -94,8 +99,11 @@ class Job(object):
         self.update()
 
     def error(self, message):
-        assert self.message
-        self.message.delete()
+        if not self.message:
+            raise RuntimeError("you cannot error() a job unless you get it from fetch_next()")
+        success = self.message.delete()
+        if not success:
+            raise RuntimeError("could not delete message '{0}' from SQS queue '{1}'".format(self.uuid, self.job_queue.name))
         self.message = None
 
         self.status = ERROR
@@ -105,10 +113,14 @@ class Job(object):
 
     def delete(self):
         if self.message:
-            self.message.delete()
+            success = self.message.delete()
+            if not success:
+                raise RuntimeError("could not delete message '{0}' from SQS queue '{1}'".format(self.uuid, self.job_queue.name))
             self.message = None
         self._open_queues()
-        self.job_database.delete_attributes(self.uuid)
+        success = self.job_database.delete_attributes(self.uuid)
+        if not success:
+            raise RuntimeError("could not delete key '{0}' from SDB domain '{1}'".format(self.uuid, self.job_database.name))
 
     def set_data(self, data):
         self.data = {}
@@ -123,10 +135,18 @@ class Job(object):
                 if not get_default:
                     raise ValueError("passed data does not have required key '{0}'".format(key))
                 else:
-                    self.data[key] = get_default()
+                    try:
+                        self.data[key] = get_default()
+                    except Exception:
+                        print "got exception in default handler for '{0}'".format(key)
+                        raise
             else:
                 if convert:
-                    self.data[key] = convert(data[key])
+                    try:
+                        self.data[key] = convert(data[key])
+                    except Exception:
+                        print "got exception in convert handler for '{0}'".format(key)
+                        raise
                 else:
                     self.data[key] = data[key]
                 del data[key]
@@ -173,7 +193,8 @@ class Job(object):
             # so, try again:
             time.sleep(1)
             data = cls.job_database.get_item(uuid)
-        assert data
+        if not data:
+            raise RuntimeError("job '{0}' does not have an SDB entry in '{1}'".format(uuid, cls.job_database.name))
 
         job = cls(uuid, message, data)
         job.status = INPROGRESS
@@ -207,8 +228,12 @@ class Job(object):
         job = cls(gen_uuid().hex, None, data)
         message = cls.job_queue.new_message(body=job.uuid)
         job.message = message
-        cls.job_database.put_attributes(job.uuid, job.get_data())
-        cls.job_queue.write(message)
+        success = cls.job_database.put_attributes(job.uuid, job.get_data())
+        if not success:
+            raise RuntimeError("could not put key '{0}' in SDB domain '{1}'".format(job.uuid, cls.job_database.name))
+        message = cls.job_queue.write(message)
+        if not message:
+            raise RuntimeError("could not write message '{0}' to SQS queue '{1}'".format(job.uuid, cls.job_queue.name))
         return job
 
 
