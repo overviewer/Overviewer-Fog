@@ -167,6 +167,12 @@ class Job(object):
             raise RuntimeError("could not create SDB domain '{0}'".format(queue_name))
 
     @classmethod
+    def teardown(cls):
+        cls._open_queues()
+        cls.job_queue.delete()
+        cls.job_database.delete()
+
+    @classmethod
     def _open_queues(cls):
         if cls.job_queue is None:
             queue_name = cls.job_type_prefix + cls.job_type
