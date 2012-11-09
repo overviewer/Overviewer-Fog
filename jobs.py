@@ -41,6 +41,22 @@ class Job(object):
     def __init__(self, uuid, message, data):
         self.uuid = uuid
         self.message = message
+        self.data = {}
+
+        # sanity check for shadowed member variables
+        for k in self.job_fields:
+            try:
+                k, _, _ = k
+            except ValueError:
+                pass
+
+            if k in dir(self):
+                raise ValueError("job field '{0}' shadows a member variable".format(k))
+            for j, _, _ in self.job_fields_internal:
+                if k == j:
+                    raise ValueError("job field '{0}' shadows an internal job field".format(k))
+
+        # ok, now set data
         self.set_data(data)
 
     def __repr__(self):
@@ -198,7 +214,10 @@ class Job(object):
 
 class TestJob(Job):
     job_type = "test"
-    job_fields = ["test", job_field("testdefault", 42, int)]
+    job_fields = [
+        "test",
+        job_field("testdefault", 42, int),
+    ]
 
 import sys
 if __name__ == "__main__":
