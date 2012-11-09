@@ -22,7 +22,7 @@ class TestJobObject(object):
     def setup_class(cls):
         aws_suffix = os.environ.get("FOG_TEST_SUFFIX")
         cls.clean_on_teardown = False
-        if aws_suffix is None:
+        if aws_suffix is None or aws_suffix == "":
             aws_suffix = "".join(map(chr, random.sample(range(ord('a'), ord('z')), 9)))
             cls.clean_on_teardown = True
 
