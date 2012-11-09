@@ -125,15 +125,23 @@ class Job(object):
             assert cls.job_queue and cls.job_database
 
     @classmethod
-    def fetch_next(cls):
+    def fetch_next(cls, timeout=None):
         cls._open_queues()
-        message = cls.job_queue.read()
+        message = cls.job_queue.read(wait_time_seconds=timeout)
         if message is None:
             return None
 
         uuid = message.get_body()
+
         data = cls.job_database.get_item(uuid)
+        if not data:
+            # there is occasionally a race condition here
+            # where the message is added before the SDB bit is updated
+            # so, try again:
+            time.sleep(1)
+            data = cls.job_database.get_item(uuid)
         assert data
+
         job = cls(uuid, message, data)
         job.status = INPROGRESS
         job.update()
@@ -179,16 +187,16 @@ import sys
 if __name__ == "__main__":
     if '-client' in sys.argv:
         while 1:
-            j = TestJob.fetch_next()
+            j = TestJob.fetch_next(timeout=20)
             if j is None:
-                time.sleep(2)
+                continue
+
+            print "got job", j.test, j.testdefault
+            time.sleep(5)
+            if int(j.test) % 2 == 0:
+                j.error("number was even!")
             else:
-                print "got job", j.test, j.testdefault
-                time.sleep(5)
-                if int(j.test) % 2 == 0:
-                    j.error("number was even!")
-                else:
-                    j.finish()
+                j.finish()
     if '-server' in sys.argv:
         for i in xrange(4):
             TestJob.submit(test=i)
