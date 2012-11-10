@@ -4,7 +4,7 @@ import random
 import time
 import os
 
-from ..jobs import Job, job_field
+from ..jobs import *
 
 
 # NB: Don't begin the name of this wtih 'Test'.  pytest won't like that
@@ -36,12 +36,31 @@ class TestJobObject(object):
     def test1(self):
         # Submit a job
         r = random.randint(5, 500)
-        JobTestThing.submit(foo=r)
+        uuid = JobTestThing.submit(foo=r).uuid
         time.sleep(1)
 
-        # try for at more 15 seconds to get a job
+        # try for at most 15 seconds to get a job
         j = JobTestThing.fetch_next(timeout=15)
         assert j is not None
 
         assert j.foo == r
         assert j.bar == "hi"
+        # wait for status to flip to INPROGRESS
+        for c in range(15):
+            if JobTestThing.fetch_by_uuid(uuid).status != INPROGRESS:
+                time.sleep(1)
+            else:
+                break
+        else:
+            assert JobTestThing.fetch_by_uuid(uuid).status == INPROGRESS
+        j.finish()
+
+        # wait for status to flip to COMPLETE
+        assert JobTestThing.fetch_by_uuid(uuid).status == COMPLETE
+        for c in range(15):
+            if JobTestThing.fetch_by_uuid(uuid).status != COMPLETE:
+                time.sleep(1)
+            else:
+                break
+        else:
+            assert JobTestThing.fetch_by_uuid(uuid).status == COMPLETE
