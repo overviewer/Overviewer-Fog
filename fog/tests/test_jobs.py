@@ -2,11 +2,9 @@
 
 import random
 import time
-import sys
 import os
 
-sys.path.append(".")
-from jobs import Job, job_field
+from ..jobs import Job, job_field
 
 
 # NB: Don't begin the name of this wtih 'Test'.  pytest won't like that

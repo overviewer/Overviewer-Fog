@@ -6,7 +6,7 @@ import tempfile
 import subprocess
 import shutil
 
-from jobs import *
+from fog.jobs import *
 
 
 class WorldGenJob(Job):

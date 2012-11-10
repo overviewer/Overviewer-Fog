@@ -1,9 +1,8 @@
 #!/usr/bin/python2
 
-
-import sys
-sys.path.append(".")
 from inspect import isfunction, isclass, ismethod
+
+from .. import jobs
 
 
 def test_docstrings():
@@ -11,7 +10,7 @@ def test_docstrings():
 
     print "test"
 
-    m = __import__("jobs")
+    m = jobs
     for thing in m.__all__:
         if thing.startswith("__"):
             continue
