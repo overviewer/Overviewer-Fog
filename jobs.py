@@ -278,6 +278,24 @@ class Job(object):
                 raise RuntimeError("could not open SDB domain '{0}'".format(queue_name))
 
     @classmethod
+    def fetch_by_uuid(cls, uuid):
+        """THis class method will return a job with the given uuid,
+        or None if no such job exists.  You might use this to check
+        on the status of a given job
+        """
+        cls._open_queues()
+
+        data = cls.job_database.get_item(uuid)
+        if not data:  # see the comments in fetch_next
+            time.sleep(1)
+            data = cls.job_database.get_item(uuid)
+        if not data:
+            raise RuntimeError("job '{0}' does not have an SDB entry in '{1}'".format(uuid, cls.job_database.name))
+
+        job = cls(uuid, None, data)
+        return job
+
+    @classmethod
     def fetch_next(cls, timeout=None):
         """This class method will return the next pending job of this
         type. Jobs returned this way can be `finish()`d and
