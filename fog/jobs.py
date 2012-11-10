@@ -382,6 +382,14 @@ class TestJob(Job):
         job_field("testdefault", 42, int),
     ]
 
+
+class WorldGenJob(Job):
+    job_type = "worldgen"
+    job_fields = [
+        job_field("seed", '', str),
+        job_field("spawn", [], list)
+    ]
+
 import sys
 if __name__ == "__main__":
     if '-setup' in sys.argv:
