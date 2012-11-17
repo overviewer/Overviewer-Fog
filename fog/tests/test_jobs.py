@@ -56,7 +56,6 @@ class TestJobObject(object):
         j.finish()
 
         # wait for status to flip to COMPLETE
-        assert JobTestThing.fetch_by_uuid(uuid).status == COMPLETE
         for c in range(15):
             if JobTestThing.fetch_by_uuid(uuid).status != COMPLETE:
                 time.sleep(1)
