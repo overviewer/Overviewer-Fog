@@ -12,12 +12,14 @@ except ImportError:
 
 from argparse import ArgumentParser
 from jobs import WorldGenJob
+from uploaders import S3Uploader
 import config
 
 
 class WorkerGenWorldCommand(object):
     name = "genworld"
     description = "Fetches and runs 1 GenWorld job"
+    s3 = S3Uploader()
 
     @classmethod
     def get_argument_parser(cls):
@@ -79,6 +81,11 @@ class WorkerGenWorldCommand(object):
             p.wait()
             print "Minecraft server exited with %r" % p.returncode
 
+        remotefile = job.uuid + ".tar.bz2"
+        url = self.s3.upload_dir_as_file(tmpdir, remotefile, bzip=True)
+
+        job.url = url
+
         job.finish()
-        print "All done!  Note world has not been uploaded"
-        # TODO re-add uploading once that gets a nice abstraction
+        print "All done! World has been uploaded to:"
+        print url

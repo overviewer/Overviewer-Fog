@@ -1,7 +1,7 @@
 #!/usr/bin/python2
 
 from fog.cli import run_client, ClientCommand
-from fog.client_commands import ClientGenWorldCommand
+from fog.client_commands import ClientGenWorldCommand, ClientGenWorldStatusCommand
 
 if __name__ == "__main__":
-    run_client([ClientCommand, ClientGenWorldCommand])
+    run_client([ClientCommand, ClientGenWorldCommand, ClientGenWorldStatusCommand])

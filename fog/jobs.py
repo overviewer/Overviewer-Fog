@@ -127,6 +127,19 @@ class Job(object):
         else:
             self.data[name] = value
 
+    def update_data(self):
+        """Updates this object with the latest data
+        TODO: consider renaming this method, so it's less likely to be confused with update()
+        """
+        data = self.job_database.get_item(self.uuid)
+        if not data:  # see the comments in fetch_next
+            time.sleep(1)
+            data = self.job_database.get_item(self.uuid)
+        if not data:
+            raise RuntimeError("job '{0}' does not have an SDB entry in '{1}'".format(self.uuid, self.job_database.name))
+
+        self.set_data(data)
+
     def update(self, visibility_timeout=60):
         """Update the job in the backend. You should call this after
         changing the values of any of the job fields, so that these
@@ -387,7 +400,8 @@ class WorldGenJob(Job):
     job_type = "worldgen"
     job_fields = [
         job_field("seed", '', str),
-        job_field("spawn", [], list)
+        job_field("spawn", [], list),
+        job_field("url", '', str)
     ]
 
 import sys

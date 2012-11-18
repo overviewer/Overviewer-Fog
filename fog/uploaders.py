@@ -9,6 +9,7 @@ TODO put some docs here
 import os
 import subprocess
 import shutil
+import tempfile
 
 
 class Uploader(object):
@@ -72,6 +73,36 @@ class S3Uploader(Uploader):
         k.set_contents_from_filename(localfile, reduced_redundancy=True)
         k.make_public()
         url = self.urlbase + k.key
+        return url
+
+    def upload_dir_as_file(self, localdir, remotename, bzip=True):
+        "Uploads the entire contents of a directory as an possibly bzip2 compressed tarball"
+
+        k = self.boto.s3.key.Key(self.bucket)
+        k.key = remotename
+
+        tarargs = ["tar", "-c"]
+        args = []
+        if bzip:
+            tarargs.append("-j")
+            args.append("-bzip2")
+
+        tarargs += ["-C", localdir, "."]
+
+        # we cannot stream data into S3, so we must save the tarball locally first
+        tarball = tempfile.NamedTemporaryFile(delete=False)
+
+        tarp = subprocess.Popen(tarargs, stdout=tarball)
+        tarp.wait()
+        tarball.close()
+
+        k.set_contents_from_filename(tarball.name, reduced_redundancy=True)
+
+        k.make_public()
+        url = self.urlbase + k.key
+
+        os.unlink(tarball.name)
+
         return url
 
     def delete_file(self, remotename):
