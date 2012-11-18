@@ -38,10 +38,10 @@ class AWSCredentials(Credentials):
 
 
 class SSHCredentials(Credentials):
-    defaults = dict(username="upload", host="overviewer.org")
+    defaults = dict(username="upload")
 
-    def __init__(self, username=None, key=None, host=None):
-        self.dict = dict(username=username, privkey=key, host=host)
+    def __init__(self, username=None, key=None):
+        self.dict = dict(username=username, privkey=key)
 
     def get(self, key):
         return self.dict.get(key, SSHCredentials.defaults.get(key))
@@ -81,19 +81,37 @@ class S3Uploader(Uploader):
 
 class OVUploader(Uploader):
     """An anonymous ssh-based uploaded to paphlagon"""
-    def __init__(self, credentials):
+    def __init__(self, hostname, credentials):
         self.cred = credentials
+        self.host = hostname
 
-    def upload_file(self, file):
-        p = subprocess.Popen(["ssh",
+    def upload_file(self, file, bzip=False):
+        """Uploads a single file.  Set bzip to True to incidate that the local
+        file should be bzip2 compressed, and that it should be uncompressed on the remote
+        system"""
+        args = []
+        if bzip:
+            args.append("-bzip2")
+
+        p = subprocess.Popen(["ssh", "-T",
                              "-l", self.cred.get("username"),
                              "-i", self.cred.get("privkey"),
-                             "new.overviewer.org",
-                             render_uuid],
+                             self.host,
+                             "do_upload",
+                             "-file"] + args,
                              stdin=subprocess.PIPE)
+        pipe_obj = p.stdin
+
+        if bzip:
+            bzip_p = subprocess.Popen(["bzip2", "-c"], stdin=subprocess.PIPE, stdout=p.stdin)
+            pipe_obj = bzip_p.stdin
+
         with open(file) as fobj:
-            shutil.copyfileobj(fobj, p.stdin)
-        p.stdin.close()
+            shutil.copyfileobj(fobj, pipe_obj)
+        pipe_obj.close()
+        if bzip:
+            bzip_p.wait()
+            p.stdin.close()
         p.wait()
 
 
