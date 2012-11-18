@@ -105,3 +105,15 @@ class TestOVUploader(object):
         with open("/tmp/incoming.dat", "rb") as f:
             assert f.read(len(randdata)) == randdata
         os.unlink(tmpfil.name)
+
+    def test_uploaddir(self):
+        creds = SSHCredentials(getuser(), TestOVUploader.keyname)
+        ov = OVUploader("localhost", creds)
+
+        ov.upload_dir(".")
+
+    def test_uploaddir_nobzip(self):
+        creds = SSHCredentials(getuser(), TestOVUploader.keyname)
+        ov = OVUploader("localhost", creds)
+
+        ov.upload_dir(".", bzip=False)

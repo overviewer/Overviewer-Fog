@@ -47,7 +47,7 @@ try:
         args = []
         if "-bzip2" in cmd:
             args.append("-j")
-        p = subprocess.Popen(["tar", "-C", "/tmp/incoming", "-x"] + args, stdin=sys.stdin, stdout=sys.stderr)
+        p = subprocess.Popen(["tar", "-x", "-C", "/tmp/incoming"] + args, stdin=sys.stdin, stdout=sys.stderr)
         p.wait()
     else:
         sys.stderr.write("what?\n")

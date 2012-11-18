@@ -114,6 +114,32 @@ class OVUploader(Uploader):
             p.stdin.close()
         p.wait()
 
+    def upload_dir(self, directory, bzip=True):
+        """Uploads the entire contents of a directory.  The files will be streamed with tar,
+        and compressed with bzip2.  Set bzip to false to disable compression"""
+
+        tarargs = ["tar", "-c"]
+        args = []
+        if bzip:
+            tarargs.append("-j")
+            args.append("-bzip2")
+
+        tarargs += ["-C", directory, "."]
+
+        p = subprocess.Popen(["ssh", "-T",
+                             "-l", self.cred.get("username"),
+                             "-i", self.cred.get("privkey"),
+                             self.host,
+                             "do_upload",
+                             "-dir"] + args,
+                             stdin=subprocess.PIPE)
+
+        tarp = subprocess.Popen(tarargs, stdout=p.stdin)
+        tarp.wait
+
+        p.stdin.close()
+        p.wait()
+
 
 class RsyncUploader(Uploader):
     """An authenticatd rsync-based uploaded"""
