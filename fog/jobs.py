@@ -3,6 +3,7 @@
 import boto
 from uuid import uuid4 as gen_uuid
 import time
+import json
 
 __all__ = ["job_field", "Job", "SUBMITTED", "INPROGRESS", "COMPLETE", "ERROR"]
 
@@ -238,12 +239,12 @@ class Job(object):
             else:
                 if convert:
                     try:
-                        self.data[key] = convert(data[key])
+                        self.data[key] = convert(json.loads(data[key]))
                     except Exception:
                         print "got exception in convert handler for '{0}'".format(key)
                         raise
                 else:
-                    self.data[key] = data[key]
+                    self.data[key] = json.loads(data[key])
                 del data[key]
         if data:
             raise ValueError("passed data has unrecognized key '{0}'".format(data.keys()[0]))
@@ -255,7 +256,10 @@ class Job(object):
         used by your job, you should override this method and its twin
         `set_data`.
         """
-        return self.data
+        d = {}
+        for key, val in self.data.iteritems():
+            d[key] = json.dumps(val)
+        return d
 
     @classmethod
     def setup(cls):
@@ -376,7 +380,11 @@ class Job(object):
         keyword arguments corresponding to job field names.
         """
         cls._open_queues()
-        job = cls(gen_uuid().hex, None, data)
+        d = {}
+
+        for key, val in data.iteritems():
+            d[key] = json.dumps(val)
+        job = cls(gen_uuid().hex, None, d)
         message = cls.job_queue.new_message(body=job.uuid)
         job.message = message
         success = cls.job_database.put_attributes(job.uuid, job.get_data())
