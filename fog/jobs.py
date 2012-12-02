@@ -412,6 +412,24 @@ class WorldGenJob(Job):
         job_field("url", '', str)
     ]
 
+
+class RenderJob(Job):
+    job_type = "render"
+    job_fields = [
+        # The URL of a compressed tarbar of a minecraft world.  Set by the client
+        job_field("world_url", None, str),
+
+        # URL of the rendered world.  Set by the worker when the job is complete
+        job_field("rendered_url", "", str),
+
+        # dictionary of render options.  Set by the client
+        job_field("render_opts", None, dict),
+
+        # render progress.  set by the worker
+        job_field("render_progress", 0.0, float)
+
+    ]
+
 import sys
 if __name__ == "__main__":
     if '-setup' in sys.argv:

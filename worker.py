@@ -1,7 +1,9 @@
 #!/usr/bin/python2
 
 from fog.cli import run_worker, WorkerCommand
-from fog.worker_commands import WorkerGenWorldCommand
+from fog.worker_commands import *
 
 if __name__ == "__main__":
-    run_worker([WorkerCommand, WorkerGenWorldCommand])
+    run_worker([WorkerCommand,
+                WorkerGenWorldCommand,
+                WorkerDoRenderCommand])
