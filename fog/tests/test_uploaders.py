@@ -1,4 +1,4 @@
-
+import sys
 import os
 import random
 import tempfile
@@ -71,7 +71,7 @@ class TestOVUploader(object):
 
         with open(cls.authkeys, "a+") as f:
             with open(cls.keyname + ".pub") as keyf:
-                f.write('''command="/opt/local/bin/python2 %s",no-port-forwarding,no-pty ''' % do_upload)
+                f.write('''command="%s %s",no-port-forwarding,no-pty ''' % (sys.executable, do_upload))
                 f.write(keyf.read())
 
     def teardown_class(cls):
@@ -95,7 +95,7 @@ class TestOVUploader(object):
             assert f.read(len(randdata)) == randdata
         os.unlink(tmpfil.name)
 
-    def test_uploadfile_bzip(self):
+    def test_uploadfile_gzip(self):
         creds = SSHCredentials(getuser(), TestOVUploader.keyname)
         ov = OVUploader("localhost", creds)
 
@@ -112,8 +112,8 @@ class TestOVUploader(object):
 
         ov.upload_dir(".")
 
-    def test_uploaddir_nobzip(self):
+    def test_uploaddir_nogzip(self):
         creds = SSHCredentials(getuser(), TestOVUploader.keyname)
         ov = OVUploader("localhost", creds)
 
-        ov.upload_dir(".", bzip=False)
+        ov.upload_dir(".", gzip=False)

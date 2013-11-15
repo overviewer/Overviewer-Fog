@@ -35,18 +35,20 @@ try:
 
     if "-file" in cmd:
         inobj = sys.stdin
-        if "-bzip2" in cmd:
-            p = subprocess.Popen(["bzip2", "-dc"], stdin=sys.stdin, stdout=subprocess.PIPE)
+        if "-gzip" in cmd:
+            p = subprocess.Popen(["gzip", "-dc"], stdin=sys.stdin, stdout=subprocess.PIPE)
             inobj = p.stdout
         with open("/tmp/incoming.dat", "w") as f:
             shutil.copyfileobj(inobj, f)
-        if "-bzip2" in cmd:
+        if "-gzip" in cmd:
             p.wait()
     elif "-dir" in cmd:
 
         args = []
         if "-bzip2" in cmd:
             args.append("-j")
+        if "-gzip" in cmd:
+            args.append("-z")
         p = subprocess.Popen(["tar", "-x", "-C", "/tmp/incoming"] + args, stdin=sys.stdin, stdout=sys.stderr)
         p.wait()
     else:

@@ -75,17 +75,17 @@ class S3Uploader(Uploader):
         url = self.urlbase + k.key
         return url
 
-    def upload_dir_as_file(self, localdir, remotename, bzip=True):
-        "Uploads the entire contents of a directory as an possibly bzip2 compressed tarball"
+    def upload_dir_as_file(self, localdir, remotename, gzip=True):
+        "Uploads the entire contents of a directory as an possibly gzip compressed tarball"
 
         k = self.boto.s3.key.Key(self.bucket)
         k.key = remotename
 
         tarargs = ["tar", "-c"]
         args = []
-        if bzip:
-            tarargs.append("-j")
-            args.append("-bzip2")
+        if gzip:
+            tarargs.append("-z")
+            args.append("-gzip")
 
         tarargs += ["-C", localdir, "."]
 
@@ -116,13 +116,13 @@ class OVUploader(Uploader):
         self.cred = credentials
         self.host = hostname
 
-    def upload_file(self, file, bzip=False):
-        """Uploads a single file.  Set bzip to True to incidate that the local
-        file should be bzip2 compressed, and that it should be uncompressed on the remote
+    def upload_file(self, file, gzip=False):
+        """Uploads a single file.  Set gzip to True to incidate that the local
+        file should be gzip compressed, and that it should be uncompressed on the remote
         system"""
         args = []
-        if bzip:
-            args.append("-bzip2")
+        if gzip:
+            args.append("-gzip")
 
         p = subprocess.Popen(["ssh", "-T",
                              "-l", self.cred.get("username"),
@@ -133,27 +133,27 @@ class OVUploader(Uploader):
                              stdin=subprocess.PIPE)
         pipe_obj = p.stdin
 
-        if bzip:
-            bzip_p = subprocess.Popen(["bzip2", "-c"], stdin=subprocess.PIPE, stdout=p.stdin)
-            pipe_obj = bzip_p.stdin
+        if gzip:
+            gzip_p = subprocess.Popen(["gzip", "-c"], stdin=subprocess.PIPE, stdout=p.stdin)
+            pipe_obj = gzip_p.stdin
 
         with open(file) as fobj:
             shutil.copyfileobj(fobj, pipe_obj)
         pipe_obj.close()
-        if bzip:
-            bzip_p.wait()
+        if gzip:
+            gzip_p.wait()
             p.stdin.close()
         p.wait()
 
-    def upload_dir(self, directory, elements=['.'], bzip=True):
+    def upload_dir(self, directory, elements=['.'], gzip=True):
         """Uploads the entire contents of a directory.  The files will be streamed with tar,
-        and compressed with bzip2.  Set bzip to false to disable compression"""
+        and compressed with gzip.  Set gzip to false to disable compression"""
 
         tarargs = ["tar", "-c"]
         args = []
-        if bzip:
-            tarargs.append("-j")
-            args.append("-bzip2")
+        if gzip:
+            tarargs.append("-z")
+            args.append("-gzip")
 
         tarargs += ["-C", directory, ] + elements
 
