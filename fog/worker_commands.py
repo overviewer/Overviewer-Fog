@@ -67,10 +67,13 @@ class WorkerDoRenderCommand(object):
                 if "level.dat" in files:
                     return root
                 for d in dirs:
-                    findLevel(os.path.join(root, d))
-            raise Exception("Failed to find level.dat")
+                    l = findLevel(os.path.join(root, d))
+                    if l is not None:
+                        return l
 
         real_world_dir = findLevel(os.path.join(tmpdir, "world"))
+        if real_world_dir is None:
+            raise Exception("Failed to find level.dat anywhere in %r" % os.path.join(tmpdir, "world"))
 
         print "Rendering..."
         p = subprocess.Popen(["python",
