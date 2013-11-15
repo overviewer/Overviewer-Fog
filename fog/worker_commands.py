@@ -12,7 +12,7 @@ except ImportError:
 
 from argparse import ArgumentParser
 from jobs import WorldGenJob, RenderJob
-from uploaders import S3Uploader
+from uploaders import S3Uploader, SSHCredentials, OVUploader
 import config
 import urllib
 
@@ -79,7 +79,7 @@ class WorkerDoRenderCommand(object):
         p = subprocess.Popen([sys.executable,
                               os.path.join(config.overviewer_directory, "overviewer.py"),
                               real_world_dir,
-                              os.path.join(tmpdir, "output_dir"),
+                              os.path.join(tmpdir, "output_dir_" + job.uuid),
                               "--rendermode",
                               render_opts['rendermode']])
         p.wait()
@@ -90,6 +90,12 @@ class WorkerDoRenderCommand(object):
         print "Ok."
 
         job.rendered_url = os.path.join(tmpdir, "output_dir")
+
+        creds = SSHCredentials(config.ov_upload_username, config.ov_upload_key)
+        ov = OVUploader(config.ov_upload_hostname, creds)
+
+        ov.upload_dir(tmpdir, ["output_dir_" + job.uuid])
+
         job.finish()
 
         #shutil.rmtree(tmpdir)

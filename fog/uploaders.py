@@ -145,7 +145,7 @@ class OVUploader(Uploader):
             p.stdin.close()
         p.wait()
 
-    def upload_dir(self, directory, bzip=True):
+    def upload_dir(self, directory, elements=['.'], bzip=True):
         """Uploads the entire contents of a directory.  The files will be streamed with tar,
         and compressed with bzip2.  Set bzip to false to disable compression"""
 
@@ -155,7 +155,7 @@ class OVUploader(Uploader):
             tarargs.append("-j")
             args.append("-bzip2")
 
-        tarargs += ["-C", directory, "."]
+        tarargs += ["-C", directory, ] + elements
 
         p = subprocess.Popen(["ssh", "-T",
                              "-l", self.cred.get("username"),
@@ -165,7 +165,7 @@ class OVUploader(Uploader):
                              "-dir"] + args,
                              stdin=subprocess.PIPE)
 
-        tarp = subprocess.Popen(tarargs, stdout=p.stdin)
+        tarp = subprocess.Popen(tarargs, stdout=p.stdin, cwd=directory)
         tarp.wait
 
         p.stdin.close()
