@@ -76,7 +76,7 @@ class WorkerDoRenderCommand(object):
             raise Exception("Failed to find level.dat anywhere in %r" % os.path.join(tmpdir, "world"))
 
         print "Rendering..."
-        p = subprocess.Popen(["python",
+        p = subprocess.Popen([sys.executable,
                               os.path.join(config.overviewer_directory, "overviewer.py"),
                               real_world_dir,
                               os.path.join(tmpdir, "output_dir"),
