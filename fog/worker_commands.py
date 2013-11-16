@@ -46,7 +46,7 @@ class WorkerDoRenderCommand(object):
         map_url = urllib.urlopen(url)
         print "OK."
 
-        fobj = open(os.path.join(tmpdir, "world.tar.bz2"), "w")
+        fobj = open(os.path.join(tmpdir, "world.tgz"), "w")
         print "Downloading map to %s..." % tmpdir
         shutil.copyfileobj(map_url, fobj)
         fobj.close()
@@ -54,7 +54,7 @@ class WorkerDoRenderCommand(object):
 
         print "Uncompressing..."
         os.mkdir(os.path.join(tmpdir, "world"))
-        p = subprocess.Popen(["tar", "-jxf", os.path.join(tmpdir, "world.tar.bz2")],
+        p = subprocess.Popen(["tar", "-zxf", os.path.join(tmpdir, "world.tgz")],
                              cwd=os.path.join(tmpdir, "world"))
         p.wait()
         if p.returncode != 0:
@@ -166,8 +166,8 @@ class WorkerGenWorldCommand(object):
             p.wait()
             print "Minecraft server exited with %r" % p.returncode
 
-        remotefile = job.uuid + ".tar.bz2"
-        url = self.s3.upload_dir_as_file(tmpdir, remotefile, bzip=True)
+        remotefile = job.uuid + ".tgz"
+        url = self.s3.upload_dir_as_file(tmpdir, remotefile, gzip=True)
 
         job.url = url
 
